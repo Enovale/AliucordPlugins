@@ -54,7 +54,7 @@ class PlayableEmbeds : Plugin() {
     override fun start(_context: Context) {
         patcher.after<WidgetChatListAdapterItemEmbed>("configureUI", WidgetChatListAdapterItemEmbed.Model::class.java) {
             val model = it.args[0] as WidgetChatListAdapterItemEmbed.Model
-            val embed = model.embedEntry.embed
+            val embed = MessageEmbedWrapper(model.embedEntry.embed)
             val holder = it.thisObject as WidgetChatListAdapterItemEmbed
             val layout = holder.itemView as ConstraintLayout
 
@@ -66,7 +66,7 @@ class PlayableEmbeds : Plugin() {
             when (embed.rawProvider?.name) {
                 "YouTube" -> addYoutubeEmbed(layout, url)
                 "Spotify" -> addSpotifyEmbed(layout, url)
-                else -> addDefaultEmbed(layout, MessageEmbedWrapper(embed))
+                else -> addDefaultEmbed(layout, embed)
             }
         }
     }
