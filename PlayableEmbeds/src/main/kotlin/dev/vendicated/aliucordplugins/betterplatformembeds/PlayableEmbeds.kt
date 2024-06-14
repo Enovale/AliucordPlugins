@@ -83,7 +83,7 @@ class PlayableEmbeds : Plugin() {
         cardView.removeView(chatListItemEmbedImage)
         val posterUrl = embed.image?.url
 
-        val webView = WebView(ctx).apply {
+        val webView = ScrollableWebView(ctx).apply {
             id = widgetId
             setBackgroundColor(Color.TRANSPARENT)
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
