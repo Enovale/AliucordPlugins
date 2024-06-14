@@ -24,6 +24,7 @@ import com.aliucord.Utils
 import com.aliucord.annotations.AliucordPlugin
 import com.aliucord.entities.Plugin
 import com.aliucord.patcher.*
+import com.aliucord.wrappers.embeds.MessageEmbedWrapper
 import com.aliucord.wrappers.embeds.MessageEmbedWrapper.Companion.rawProvider
 import com.aliucord.wrappers.embeds.MessageEmbedWrapper.Companion.url
 import com.aliucord.wrappers.embeds.ProviderWrapper.Companion.name
@@ -61,11 +62,53 @@ class PlayableEmbeds : Plugin() {
                 if (webviewMap[v] == embed.url) return@after
                 (v.parent as ViewGroup).removeView(v)
             }
-            val url = embed.url ?: return@after;
+            val url = embed.url ?: return@after
             when (embed.rawProvider?.name) {
                 "YouTube" -> addYoutubeEmbed(layout, url)
                 "Spotify" -> addSpotifyEmbed(layout, url)
+                else -> addDefaultEmbed(layout, MessageEmbedWrapper(embed))
             }
+        }
+    }
+
+    private fun addDefaultEmbed(layout: ViewGroup, embed: MessageEmbedWrapper) {
+        val ctx = layout.context
+
+        val videoUrl = embed.video?.url ?: return
+
+        val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
+        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
+        val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
+        cardView.removeView(playButton)
+        cardView.removeView(chatListItemEmbedImage)
+        val posterUrl = embed.image?.url
+
+        val webView = WebView(ctx).apply {
+            id = widgetId
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+
+            @SuppressLint("SetJavaScriptEnabled")
+            settings.javaScriptEnabled = false
+
+            cardView.addView(this)
+        }
+
+        webviewMap[webView] = embed.url
+        webView.run {
+            loadData(
+                """
+                <html>
+                    <body style="margin: 0; padding: 0;">
+                        <video poster="$posterUrl" preload="metadata" autoplay="false" controls style="width: 100%">
+                            <source src="$videoUrl" type="video/mp4">
+                        </video>
+                    </body>
+                </html>
+                """,
+                "text/html",
+                "UTF-8"
+            )
         }
     }
 
@@ -77,8 +120,8 @@ class PlayableEmbeds : Plugin() {
         val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
         val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
         val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
-        playButton.visibility = View.GONE
-        chatListItemEmbedImage.visibility = View.GONE
+        cardView.removeView(playButton)
+        cardView.removeView(chatListItemEmbedImage)
 
         val webView = ScrollableWebView(ctx).apply {
             id = widgetId
