@@ -39,8 +39,8 @@ subprojects {
 
     aliucord {
         author("Vendicated", 343383572805058560L)
-        updateUrl.set("https://raw.githubusercontent.com/Vendicated/AliucordPlugins/builds/updater.json")
-        buildUrl.set("https://raw.githubusercontent.com/Vendicated/AliucordPlugins/builds/%s.zip")
+        updateUrl.set("https://raw.githubusercontent.com/Enovale/AliucordPlugins/builds/updater.json")
+        buildUrl.set("https://raw.githubusercontent.com/Enovale/AliucordPlugins/builds/%s.zip")
     }
 
     android {
