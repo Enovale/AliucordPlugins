@@ -25,9 +25,6 @@ import com.aliucord.annotations.AliucordPlugin
 import com.aliucord.entities.Plugin
 import com.aliucord.patcher.*
 import com.aliucord.wrappers.embeds.MessageEmbedWrapper
-import com.aliucord.wrappers.embeds.MessageEmbedWrapper.Companion.rawProvider
-import com.aliucord.wrappers.embeds.MessageEmbedWrapper.Companion.url
-import com.aliucord.wrappers.embeds.ProviderWrapper.Companion.name
 import com.discord.widgets.chat.list.adapter.WidgetChatListAdapterItemEmbed
 import com.facebook.drawee.view.SimpleDraweeView
 import com.google.android.material.card.MaterialCardView
@@ -51,7 +48,7 @@ class PlayableEmbeds : Plugin() {
                 "(?:embed/|v/|watch\\?v=|watch\\?.+&v=|shorts/))((\\w|-){11})"+
                 "(?:(?:\\?|&)(?:star)?t=(\\d+))?(?:\\S+)?")
 
-    override fun start(_context: Context) {
+    override fun start(context: Context) {
         patcher.after<WidgetChatListAdapterItemEmbed>("configureUI", WidgetChatListAdapterItemEmbed.Model::class.java) {
             val model = it.args[0] as WidgetChatListAdapterItemEmbed.Model
             val embed = MessageEmbedWrapper(model.embedEntry.embed)
@@ -63,7 +60,7 @@ class PlayableEmbeds : Plugin() {
                 (v.parent as ViewGroup).removeView(v)
             }
             val url = embed.url ?: return@after
-            when (embed.rawProvider?.name) {
+            when (embed.provider?.name) {
                 "YouTube" -> addYoutubeEmbed(layout, url)
                 "Spotify" -> addSpotifyEmbed(layout, url)
                 else -> addDefaultEmbed(layout, embed)
@@ -79,8 +76,8 @@ class PlayableEmbeds : Plugin() {
         val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
         val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
         val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
-        cardView.removeView(playButton)
-        cardView.removeView(chatListItemEmbedImage)
+        playButton.visibility = View.GONE
+        chatListItemEmbedImage.visibility = View.GONE
         val posterUrl = embed.image?.url
 
         val webView = ScrollableWebView(ctx).apply {
@@ -120,8 +117,8 @@ class PlayableEmbeds : Plugin() {
         val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
         val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
         val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
-        cardView.removeView(playButton)
-        cardView.removeView(chatListItemEmbedImage)
+        playButton.visibility = View.GONE
+        chatListItemEmbedImage.visibility = View.GONE
 
         val webView = ScrollableWebView(ctx).apply {
             id = widgetId
