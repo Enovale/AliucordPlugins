@@ -20,6 +20,7 @@ import android.webkit.WebView
 import android.widget.LinearLayout
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
+import com.aliucord.Logger
 import com.aliucord.Utils
 import com.aliucord.annotations.AliucordPlugin
 import com.aliucord.entities.Plugin
@@ -40,13 +41,24 @@ class ScrollableWebView(ctx: Context) : WebView(ctx) {
 
 @AliucordPlugin
 class PlayableEmbeds : Plugin() {
+    companion object {
+        val Logger = Logger(PlayableEmbeds::class.simpleName!!)
+    }
+
     private val webviewMap = WeakHashMap<WebView, String>()
     private val widgetId = View.generateViewId()
     private val spotifyUrlRe = Regex("https://open\\.spotify\\.com/(\\w+)/(\\w+)")
     private val youtubeUrlRe =
-        Regex("(?:https?://)?(?:(?:www|m)\\.)?(?:youtu\\.be/|youtube(?:-nocookie)?\\.com/"+
-                "(?:embed/|v/|watch\\?v=|watch\\?.+&v=|shorts/))((\\w|-){11})"+
-                "(?:(?:\\?|&)(?:star)?t=(\\d+))?(?:\\S+)?")
+        Regex(
+            "(?:https?://)?(?:(?:www|m)\\.)?(?:youtu\\.be/|youtube(?:-nocookie)?\\.com/" +
+                    "(?:embed/|v/|watch\\?v=|watch\\?.+&v=|shorts/))((\\w|-){11})" +
+                    "(?:(?:\\?|&)(?:star)?t=(\\d+))?(?:\\S+)?"
+        )
+    private val youtubeClipRe =
+        Regex(
+            "(?:https?://)?(?:(?:www|m)\\.)?(?:youtu\\.be/|youtube(?:-nocookie)?\\.com/clip/)" +
+                    "((\\w|-){36})(?:(?:\\?|&)(?:star)?t=(\\d+))?(?:\\S+)?"
+        )
 
     override fun start(context: Context) {
         patcher.after<WidgetChatListAdapterItemEmbed>("configureUI", WidgetChatListAdapterItemEmbed.Model::class.java) {
@@ -69,10 +81,9 @@ class PlayableEmbeds : Plugin() {
     }
 
     private fun addDefaultEmbed(layout: ViewGroup, embed: MessageEmbedWrapper) {
-        val ctx = layout.context
-
         val videoUrl = embed.video?.url ?: return
 
+        val ctx = layout.context
         val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
         val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
         val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
@@ -110,9 +121,33 @@ class PlayableEmbeds : Plugin() {
     }
 
     private fun addYoutubeEmbed(layout: ViewGroup, url: String) {
-        val ctx = layout.context
+        if (!settings.getBool("youtubeEnabled", true))
+            return
 
-        val (_, videoId, _, timestamp) = youtubeUrlRe.find(url, 0).groupValues
+        val ctx = layout.context
+        val videoId: String
+        val clipId: String
+        val timestamp: String
+        val res = youtubeUrlRe.find(url, 0)
+        if (res?.groupValues?.isNotEmpty() == true) {
+            videoId = res.groupValues[1]
+            timestamp = res.groupValues[3]
+        } else {
+            val clipRes = youtubeClipRe.find(url, 0)
+            if (clipRes?.groupValues?.isNotEmpty() == true) {
+                clipId = clipRes.groupValues[1]
+                try {
+                    addYoutubeClipEmbed(layout, url, clipId)
+                    return
+                } catch (exception: Exception) {
+                    Logger.error("Failed to add clip embed from $url", exception)
+                    return
+                }
+            } else {
+                Logger.debug("no match found")
+                return
+            }
+        }
 
         val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
         val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
@@ -134,6 +169,7 @@ class PlayableEmbeds : Plugin() {
         webviewMap[webView] = url
 
         webView.run {
+            val ytUrl = "https://www.youtube-nocookie.com/embed/$videoId?start=$timestamp"
             loadData(
                 """
                 <html>
@@ -161,11 +197,135 @@ class PlayableEmbeds : Plugin() {
                     <body>
                         <div class="wrapper">
                             <iframe
-                                src="https://www.youtube-nocookie.com/embed/$videoId?start=$timestamp"
+                                src="$ytUrl"
                                 title="YouTube video player"
                                 frameborder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
-                                allowfullscreen
+                                allow="clipboard-write; encrypted-media"
+                            />
+                        </div>
+                    </body>
+                </html>
+                """,
+                "text/html",
+                "UTF-8"
+            )
+        }
+    }
+
+    private fun addYoutubeClipEmbed(layout: ViewGroup, url: String, clipId: String) {
+        if (!settings.getBool("youtubeClipsEnabled", true))
+            return
+
+        val ctx = layout.context
+        val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
+        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
+        val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
+        playButton.visibility = View.GONE
+        chatListItemEmbedImage.visibility = View.GONE
+
+        val webView = ScrollableWebView(ctx).apply {
+            id = widgetId
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            @SuppressLint("SetJavaScriptEnabled")
+            settings.javaScriptEnabled = true
+            settings.allowContentAccess = true
+
+            cardView.addView(this)
+        }
+        webviewMap[webView] = url
+
+        val endpointLink = settings.getString("yaoiEndpoint", Settings.DEFAULT_ENDPOINT)
+        webView.run {
+            loadData(
+                """
+                <html>
+                    <head>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 0;
+                            }
+                            .wrapper {
+                                position: relative;
+                                padding-bottom: 56.25%; /* (100% / 16 * 9), makes the div 16x9 */
+                                height: 0;
+                                overflow: hidden;
+                            }
+                            .wrapper iframe {
+                                position: absolute;
+                                top: 0; 
+                                left: 0;
+                                width: 100%;
+                                height: 100%;
+                            }
+                        </style>
+                        <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.X.X/dist/light/protobuf.min.js"></script>
+                        <script>
+                            var getJSON = function(url, callback) {
+                                var xhr = new XMLHttpRequest();
+                                xhr.open('GET', url, true);
+                                xhr.responseType = 'json';
+                                xhr.onload = function() {
+                                    var status = xhr.status;
+                                    if (status === 200) {
+                                        callback(null, xhr.response);
+                                    } else {
+                                        callback(status, xhr.response);
+                                    }
+                                };
+                                xhr.send();
+                            };
+                            
+                            var loadClip = function() {
+                                var response = getJSON("$endpointLink/videos?part=id,clip&clipId=$clipId", function(err, data) {
+                                    if (err == null) {
+                                        var item = data.items[0];
+                                        var clip = item.clip;
+                                        var url = "https://www.youtube.com/embed/" + item.videoId + "?clip=" + "$clipId" + "&clipt=" + getClipT(clip.startTimeMs, clip.endTimeMs);
+                                        document.getElementById("ytIframe").src = url;                                 
+                                    } else {
+                                        document.getElementById("debug").innerText = "Error " + err;   
+                                    }
+                                });
+                            }
+                            
+                            var getClipT = function(startTimeMs, endTimeMs) {
+                                var root = protobuf.Root.fromJSON(
+                                    {
+                                        "nested": {
+                                            "ClipTime": {
+                                                "fields": {
+                                                    "startTimeMs": {
+                                                        "type": "int32",
+                                                        "id": 2
+                                                    },
+                                                    "endTimeMs": {
+                                                        "type": "int32",
+                                                        "id": 3
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                );
+                                var ClipTime = root.lookup("ClipTime");
+                                var test = ClipTime.create({startTimeMs: startTimeMs, endTimeMs: endTimeMs});
+                                var encoded = ClipTime.encode(test).finish();
+                                var base64 = protobuf.util.base64.encode(encoded, 0, encoded.length)
+                                return base64
+                            }
+                        </script>
+                    </head>
+                    <body onload="loadClip()">
+                        <p id="debug" style="position: fixed; color: white" />
+                        <div class="wrapper">
+                            <iframe
+                                src=""
+                                id="ytIframe"
+                                title="YouTube video player"
+                                frameborder="0"
+                                allow="clipboard-write; encrypted-media"
                             />
                         </div>
                     </body>
@@ -178,6 +338,9 @@ class PlayableEmbeds : Plugin() {
     }
 
     private fun addSpotifyEmbed(layout: ViewGroup, url: String) {
+        if (!settings.getBool("spotifyEnabled", true))
+            return
+
         val ctx = layout.context
 
         val (_, type, itemId) = spotifyUrlRe.find(url, 0).groupValues
@@ -207,7 +370,6 @@ class PlayableEmbeds : Plugin() {
                             frameborder="0"
                             allow="encrypted-media"
                             allowtransparency
-                            allowfullscreen
                         />
                     </body>
                 </html>
@@ -225,5 +387,9 @@ class PlayableEmbeds : Plugin() {
 
     override fun stop(context: Context) {
         patcher.unpatchAll()
+    }
+
+    init {
+        settingsTab = SettingsTab(Settings::class.java, SettingsTab.Type.BOTTOM_SHEET).withArgs(settings)
     }
 }
