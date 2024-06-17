@@ -60,6 +60,11 @@ class PlayableEmbeds : Plugin() {
                     "((\\w|-){36})(?:(?:\\?|&)(?:star)?t=(\\d+))?(?:\\S+)?"
         )
 
+    private val embedImageContainer = Utils.getResId("embed_image_container", "id")
+    private val chatListItemEmbedImage = Utils.getResId("chat_list_item_embed_image", "id")
+    private val chatListItemEmbedImageIcons = Utils.getResId("chat_list_item_embed_image_icons", "id")
+    private val chatListItemEmbedContainerCard = Utils.getResId("chat_list_item_embed_container_card", "id")
+
     override fun start(context: Context) {
         patcher.after<WidgetChatListAdapterItemEmbed>("configureUI", WidgetChatListAdapterItemEmbed.Model::class.java) {
             val model = it.args[0] as WidgetChatListAdapterItemEmbed.Model
@@ -84,12 +89,12 @@ class PlayableEmbeds : Plugin() {
         val videoUrl = embed.video?.url ?: return
 
         val ctx = layout.context
-        val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
-        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
-        val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
+        val cardView = layout.findViewById<CardView>(embedImageContainer)
+        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(chatListItemEmbedImage)
+        val playButton = cardView.findViewById<View>(chatListItemEmbedImageIcons)
         playButton.visibility = View.GONE
         chatListItemEmbedImage.visibility = View.GONE
-        val posterUrl = embed.image?.url
+        val posterUrl = embed.thumbnail?.proxyUrl
 
         val webView = ScrollableWebView(ctx).apply {
             id = widgetId
@@ -104,11 +109,12 @@ class PlayableEmbeds : Plugin() {
 
         webviewMap[webView] = embed.url
         webView.run {
+            val needsPreload = if (posterUrl != null) "none" else "metadata"
             loadData(
                 """
                 <html>
                     <body style="margin: 0; padding: 0;">
-                        <video poster="$posterUrl" preload="metadata" autoplay="false" controls style="width: 100%">
+                        <video poster="$posterUrl" preload="$needsPreload" autoplay="false" controls style="width: 100%">
                             <source src="$videoUrl" type="video/mp4">
                         </video>
                     </body>
@@ -149,9 +155,9 @@ class PlayableEmbeds : Plugin() {
             }
         }
 
-        val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
-        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
-        val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
+        val cardView = layout.findViewById<CardView>(embedImageContainer)
+        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(chatListItemEmbedImage)
+        val playButton = cardView.findViewById<View>(chatListItemEmbedImageIcons)
         playButton.visibility = View.GONE
         chatListItemEmbedImage.visibility = View.GONE
 
@@ -217,9 +223,9 @@ class PlayableEmbeds : Plugin() {
             return
 
         val ctx = layout.context
-        val cardView = layout.findViewById<CardView>(Utils.getResId("embed_image_container", "id"))
-        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(Utils.getResId("chat_list_item_embed_image", "id"))
-        val playButton = cardView.findViewById<View>(Utils.getResId("chat_list_item_embed_image_icons", "id"))
+        val cardView = layout.findViewById<CardView>(embedImageContainer)
+        val chatListItemEmbedImage = cardView.findViewById<SimpleDraweeView>(chatListItemEmbedImage)
+        val playButton = cardView.findViewById<View>(chatListItemEmbedImageIcons)
         playButton.visibility = View.GONE
         chatListItemEmbedImage.visibility = View.GONE
 
@@ -353,7 +359,7 @@ class PlayableEmbeds : Plugin() {
             @SuppressLint("SetJavaScriptEnabled")
             settings.javaScriptEnabled = true
 
-            val cardView = layout.findViewById<MaterialCardView>(Utils.getResId("chat_list_item_embed_container_card", "id"))
+            val cardView = layout.findViewById<MaterialCardView>(chatListItemEmbedContainerCard)
             cardView.addView(this)
         }
 
