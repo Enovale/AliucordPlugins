@@ -86,6 +86,9 @@ class PlayableEmbeds : Plugin() {
     }
 
     private fun addDefaultEmbed(layout: ViewGroup, embed: MessageEmbedWrapper) {
+        if (!settings.getBool("genericEnabled", true))
+            return
+
         val videoUrl = embed.video?.url ?: return
 
         val ctx = layout.context
