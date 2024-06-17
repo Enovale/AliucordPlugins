@@ -45,6 +45,9 @@ class Settings(private val settings: SettingsAPI): BottomSheet() {
             "Enable embeds for youtube clips, which require that the Youtube Operational API Endpoint is set and functioning.",
             "youtubeClipsEnabled")
         addCheckedSetting(ctx, "Enable Spotify Embeds", "Enable embed support for spotify track links", "spotifyEnabled")
+        addCheckedSetting(ctx, "Enable Generic Video Embeds",
+            "Enable embeds for any other links that have videos. This can be exploited to log your IP, exercise caution.",
+            "genericEnabled")
     }
 
     private fun addCheckedSetting(ctx: Context, title: String, subtitle: String, setting: String) {
